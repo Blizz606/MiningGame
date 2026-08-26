@@ -4,6 +4,12 @@
     "$className": "DataModel",
 
     "ReplicatedStorage": {
+      "Remotes": {
+        "$className": "Folder",
+        "MineBlockRequest": {
+          "$className": "RemoteEvent"
+        }
+      },
       "Shared": {
         "$path": "src/shared"
       }
@@ -19,6 +25,38 @@
       "StarterPlayerScripts": {
         "Client": {
           "$path": "src/client"
+        }
+      }
+    },
+
+    "StarterPack": {
+      "Pickaxe": {
+        "$className": "Tool",
+        "$properties": {
+          "CanBeDropped": false,
+          "RequiresHandle": true,
+          "ToolTip": "Mine blocks"
+        },
+        "Handle": {
+          "$className": "Part",
+          "$properties": {
+            "Anchored": false,
+            "CanCollide": false,
+            "Color": [
+              0.45,
+              0.32,
+              0.2
+            ],
+            "Material": "Wood",
+            "Size": [
+              0.35,
+              3.5,
+              0.35
+            ]
+          }
+        },
+        "MineClient": {
+          "$path": "src/starterpack/Pickaxe/MineClient.client.luau"
         }
       }
     },
