@@ -3,7 +3,7 @@ local Workspace = game:GetService("Workspace")
 local MineGenerator = {}
 
 local BLOCK_SIZE = 4
-local ACTIVE_DEPTH_PER_COLUMN = 2
+local INITIAL_VISIBLE_LAYERS = 2
 
 local MINE_FOLDER_NAME = "Mine"
 local LAYERS_FOLDER_NAME = "Layers"
@@ -13,6 +13,7 @@ local BOTTOM_CORNER_NAME = "BottomCorner"
 
 local started = false
 local blocksByKey: { [string]: Part } = {}
+local deepestGeneratedDepth = 0
 
 type MineBounds = {
 	minX: number,
@@ -134,7 +135,21 @@ local function getOrCreateLayerFolder(layersFolder: Folder, depth: number): Fold
 	return getOrCreateFolder(layersFolder, getLayerName(depth))
 end
 
-local function createBlock(bounds: MineBounds, layersFolder: Folder, gridX: number, gridZ: number, depth: number)
+local function generateLayer(bounds: MineBounds, layersFolder: Folder, depth: number)
+	if depth > bounds.maxDepth or depth <= deepestGeneratedDepth then
+		return
+	end
+
+	for gridX = 1, bounds.gridSizeX do
+		for gridZ = 1, bounds.gridSizeZ do
+			MineGenerator.CreateBlock(bounds, layersFolder, gridX, gridZ, depth)
+		end
+	end
+
+	deepestGeneratedDepth = depth
+end
+
+function MineGenerator.CreateBlock(bounds: MineBounds, layersFolder: Folder, gridX: number, gridZ: number, depth: number)
 	if depth > bounds.maxDepth then
 		return
 	end
@@ -166,7 +181,9 @@ local function createBlock(bounds: MineBounds, layersFolder: Folder, gridX: numb
 		end
 
 		blocksByKey[key] = nil
-		createBlock(bounds, layersFolder, gridX, gridZ, depth + ACTIVE_DEPTH_PER_COLUMN)
+		if depth >= deepestGeneratedDepth - 1 then
+			generateLayer(bounds, layersFolder, deepestGeneratedDepth + 1)
+		end
 	end)
 
 	block.Parent = getOrCreateLayerFolder(layersFolder, depth)
@@ -187,6 +204,7 @@ function MineGenerator.Start()
 	started = true
 	clearExistingMine()
 	blocksByKey = {}
+	deepestGeneratedDepth = 0
 
 	local bounds = readMineBounds()
 	hideBoundsMarkers()
@@ -199,17 +217,13 @@ function MineGenerator.Start()
 	layersFolder.Name = LAYERS_FOLDER_NAME
 	layersFolder.Parent = mineFolder
 
-	for gridX = 1, bounds.gridSizeX do
-		for gridZ = 1, bounds.gridSizeZ do
-			for depth = 1, ACTIVE_DEPTH_PER_COLUMN do
-				createBlock(bounds, layersFolder, gridX, gridZ, depth)
-			end
-		end
+	for depth = 1, math.min(INITIAL_VISIBLE_LAYERS, bounds.maxDepth) do
+		generateLayer(bounds, layersFolder, depth)
 	end
 
 	print(
 		`Generated mine: {bounds.gridSizeX}x{bounds.gridSizeZ} columns, {bounds.maxDepth} blocks deep, `
-			.. `{bounds.gridSizeX * bounds.gridSizeZ * math.min(ACTIVE_DEPTH_PER_COLUMN, bounds.maxDepth)} active blocks.`
+			.. `{bounds.gridSizeX * bounds.gridSizeZ * deepestGeneratedDepth} generated blocks.`
 	)
 end
 
