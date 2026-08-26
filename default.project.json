@@ -48,6 +48,33 @@
             512
           ]
         }
+      },
+      "KillZone": {
+        "$className": "Part",
+        "$properties": {
+          "Anchored": true,
+          "CanCollide": false,
+          "CanTouch": true,
+          "Color": [
+            1,
+            0,
+            0
+          ],
+          "Position": [
+            0,
+            2,
+            0
+          ],
+          "Size": [
+            16,
+            4,
+            16
+          ],
+          "Transparency": 0.5
+        },
+        "KillOnTouch": {
+          "$path": "src/workspace/KillZone/KillOnTouch.server.luau"
+        }
       }
     },
     "Lighting": {
