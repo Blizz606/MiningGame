@@ -1,1 +1,3 @@
-print("Hello world, from server!")
+local MineGenerator = require(script.Systems.MineGenerator)
+
+MineGenerator.Start()
