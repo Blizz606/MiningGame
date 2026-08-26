@@ -77,6 +77,24 @@ local function readMineBounds(): MineBounds
 	}
 end
 
+local function hideBoundsMarkers()
+	local boundsFolder = Workspace:FindFirstChild(BOUNDS_FOLDER_NAME)
+	if not boundsFolder then
+		return
+	end
+
+	for _, descendant in boundsFolder:GetDescendants() do
+		if not descendant:IsA("BasePart") then
+			continue
+		end
+
+		descendant.Transparency = 1
+		descendant.CanCollide = false
+		descendant.CanTouch = false
+		descendant.CanQuery = false
+	end
+end
+
 local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number, depth: number): Vector3
 	local x = bounds.minX + (gridX - 1) * BLOCK_SIZE
 	local y = bounds.topY - (depth - 1) * BLOCK_SIZE
@@ -171,6 +189,7 @@ function MineGenerator.Start()
 	blocksByKey = {}
 
 	local bounds = readMineBounds()
+	hideBoundsMarkers()
 
 	local mineFolder = Instance.new("Folder")
 	mineFolder.Name = MINE_FOLDER_NAME
