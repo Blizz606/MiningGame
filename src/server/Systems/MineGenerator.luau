@@ -2,18 +2,29 @@ local Workspace = game:GetService("Workspace")
 
 local MineGenerator = {}
 
-local GRID_SIZE = 20
-local MAX_DEPTH = 100
 local BLOCK_SIZE = 4
 local ACTIVE_DEPTH_PER_COLUMN = 2
 
 local MINE_FOLDER_NAME = "Mine"
 local LAYERS_FOLDER_NAME = "Layers"
-local SURFACE_Y = 8
-local MINE_CENTER = Vector3.new(80, 0, 0)
+local BOUNDS_FOLDER_NAME = "MineBounds"
+local TOP_CORNER_NAME = "TopCorner"
+local BOTTOM_CORNER_NAME = "BottomCorner"
 
 local started = false
 local blocksByKey: { [string]: Part } = {}
+
+type MineBounds = {
+	minX: number,
+	maxX: number,
+	minZ: number,
+	maxZ: number,
+	topY: number,
+	bottomY: number,
+	gridSizeX: number,
+	gridSizeZ: number,
+	maxDepth: number,
+}
 
 local function getBlockKey(gridX: number, gridZ: number, depth: number): string
 	return `{gridX}:{gridZ}:{depth}`
@@ -23,17 +34,59 @@ local function getLayerName(depth: number): string
 	return `Depth_{depth}`
 end
 
-local function getBlockPosition(gridX: number, gridZ: number, depth: number): Vector3
-	local gridOffset = (GRID_SIZE + 1) * 0.5
-	local x = MINE_CENTER.X + (gridX - gridOffset) * BLOCK_SIZE
-	local y = SURFACE_Y - (depth - 0.5) * BLOCK_SIZE
-	local z = MINE_CENTER.Z + (gridZ - gridOffset) * BLOCK_SIZE
+local function readCornerPart(boundsFolder: Instance, name: string): BasePart
+	local corner = boundsFolder:FindFirstChild(name)
+	if not corner or not corner:IsA("BasePart") then
+		error(`Workspace.{BOUNDS_FOLDER_NAME}.{name} must be a BasePart.`)
+	end
+
+	return corner
+end
+
+local function readMineBounds(): MineBounds
+	local boundsFolder = Workspace:FindFirstChild(BOUNDS_FOLDER_NAME)
+	if not boundsFolder then
+		error(`Workspace.{BOUNDS_FOLDER_NAME} is missing.`)
+	end
+
+	local topCorner = readCornerPart(boundsFolder, TOP_CORNER_NAME)
+	local bottomCorner = readCornerPart(boundsFolder, BOTTOM_CORNER_NAME)
+
+	local topPosition = topCorner.Position
+	local bottomPosition = bottomCorner.Position
+	local minX = math.min(topPosition.X, bottomPosition.X)
+	local maxX = math.max(topPosition.X, bottomPosition.X)
+	local minZ = math.min(topPosition.Z, bottomPosition.Z)
+	local maxZ = math.max(topPosition.Z, bottomPosition.Z)
+	local topY = math.max(topPosition.Y, bottomPosition.Y)
+	local bottomY = math.min(topPosition.Y, bottomPosition.Y)
+	local gridSizeX = math.max(1, math.floor((maxX - minX) / BLOCK_SIZE) + 1)
+	local gridSizeZ = math.max(1, math.floor((maxZ - minZ) / BLOCK_SIZE) + 1)
+	local maxDepth = math.max(1, math.floor((topY - bottomY) / BLOCK_SIZE) + 1)
+
+	return {
+		minX = minX,
+		maxX = maxX,
+		minZ = minZ,
+		maxZ = maxZ,
+		topY = topY,
+		bottomY = bottomY,
+		gridSizeX = gridSizeX,
+		gridSizeZ = gridSizeZ,
+		maxDepth = maxDepth,
+	}
+end
+
+local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number, depth: number): Vector3
+	local x = bounds.minX + (gridX - 1) * BLOCK_SIZE
+	local y = bounds.topY - (depth - 1) * BLOCK_SIZE
+	local z = bounds.minZ + (gridZ - 1) * BLOCK_SIZE
 
 	return Vector3.new(x, y, z)
 end
 
-local function getBlockColor(depth: number): Color3
-	local depthAlpha = math.clamp(depth / MAX_DEPTH, 0, 1)
+local function getBlockColor(bounds: MineBounds, depth: number): Color3
+	local depthAlpha = math.clamp(depth / bounds.maxDepth, 0, 1)
 
 	return Color3.fromRGB(
 		math.floor(104 - depthAlpha * 44),
@@ -63,8 +116,8 @@ local function getOrCreateLayerFolder(layersFolder: Folder, depth: number): Fold
 	return getOrCreateFolder(layersFolder, getLayerName(depth))
 end
 
-local function createBlock(layersFolder: Folder, gridX: number, gridZ: number, depth: number)
-	if depth > MAX_DEPTH then
+local function createBlock(bounds: MineBounds, layersFolder: Folder, gridX: number, gridZ: number, depth: number)
+	if depth > bounds.maxDepth then
 		return
 	end
 
@@ -76,10 +129,10 @@ local function createBlock(layersFolder: Folder, gridX: number, gridZ: number, d
 	local block = Instance.new("Part")
 	block.Name = `Block_{gridX}_{gridZ}_{depth}`
 	block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
-	block.Position = getBlockPosition(gridX, gridZ, depth)
+	block.Position = getBlockPosition(bounds, gridX, gridZ, depth)
 	block.Anchored = true
 	block.Material = Enum.Material.Slate
-	block.Color = getBlockColor(depth)
+	block.Color = getBlockColor(bounds, depth)
 	block.TopSurface = Enum.SurfaceType.Smooth
 	block.BottomSurface = Enum.SurfaceType.Smooth
 
@@ -95,7 +148,7 @@ local function createBlock(layersFolder: Folder, gridX: number, gridZ: number, d
 		end
 
 		blocksByKey[key] = nil
-		createBlock(layersFolder, gridX, gridZ, depth + ACTIVE_DEPTH_PER_COLUMN)
+		createBlock(bounds, layersFolder, gridX, gridZ, depth + ACTIVE_DEPTH_PER_COLUMN)
 	end)
 
 	block.Parent = getOrCreateLayerFolder(layersFolder, depth)
@@ -115,6 +168,9 @@ function MineGenerator.Start()
 
 	started = true
 	clearExistingMine()
+	blocksByKey = {}
+
+	local bounds = readMineBounds()
 
 	local mineFolder = Instance.new("Folder")
 	mineFolder.Name = MINE_FOLDER_NAME
@@ -124,10 +180,10 @@ function MineGenerator.Start()
 	layersFolder.Name = LAYERS_FOLDER_NAME
 	layersFolder.Parent = mineFolder
 
-	for gridX = 1, GRID_SIZE do
-		for gridZ = 1, GRID_SIZE do
+	for gridX = 1, bounds.gridSizeX do
+		for gridZ = 1, bounds.gridSizeZ do
 			for depth = 1, ACTIVE_DEPTH_PER_COLUMN do
-				createBlock(layersFolder, gridX, gridZ, depth)
+				createBlock(bounds, layersFolder, gridX, gridZ, depth)
 			end
 		end
 	end
