@@ -187,6 +187,11 @@ function MineGenerator.Start()
 			end
 		end
 	end
+
+	print(
+		`Generated mine: {bounds.gridSizeX}x{bounds.gridSizeZ} columns, {bounds.maxDepth} blocks deep, `
+			.. `{bounds.gridSizeX * bounds.gridSizeZ * math.min(ACTIVE_DEPTH_PER_COLUMN, bounds.maxDepth)} active blocks.`
+	)
 end
 
 return MineGenerator
