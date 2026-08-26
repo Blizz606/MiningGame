@@ -11,9 +11,55 @@ local BOUNDS_FOLDER_NAME = "MineBounds"
 local TOP_CORNER_NAME = "TopCorner"
 local BOTTOM_CORNER_NAME = "BottomCorner"
 
+local ORE_VARIANTS = {
+	{
+		name = "Stone",
+		weight = 640,
+		color = Color3.fromRGB(92, 84, 76),
+		material = Enum.Material.Slate,
+	},
+	{
+		name = "Coal",
+		weight = 180,
+		color = Color3.fromRGB(38, 35, 34),
+		material = Enum.Material.Basalt,
+	},
+	{
+		name = "Copper",
+		weight = 95,
+		color = Color3.fromRGB(184, 102, 54),
+		material = Enum.Material.Slate,
+	},
+	{
+		name = "Iron",
+		weight = 55,
+		color = Color3.fromRGB(170, 166, 156),
+		material = Enum.Material.Metal,
+	},
+	{
+		name = "Gold",
+		weight = 24,
+		color = Color3.fromRGB(255, 202, 58),
+		material = Enum.Material.Metal,
+	},
+	{
+		name = "Diamond",
+		weight = 6,
+		color = Color3.fromRGB(78, 224, 255),
+		material = Enum.Material.Glass,
+	},
+}
+
 local started = false
 local blocksByKey: { [string]: Part } = {}
 local deepestGeneratedDepth = 0
+
+type OreVariant = {
+	name: string,
+	weight: number,
+	color: Color3,
+	material: Enum.Material,
+}
 
 type MineBounds = {
 	minX: number,
@@ -104,14 +150,23 @@ local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number
 	return Vector3.new(x, y, z)
 end
 
-local function getBlockColor(bounds: MineBounds, depth: number): Color3
-	local depthAlpha = math.clamp(depth / bounds.maxDepth, 0, 1)
+local function getOreVariant(): OreVariant
+	local totalWeight = 0
+	for _, variant in ORE_VARIANTS do
+		totalWeight += variant.weight
+	end
 
-	return Color3.fromRGB(
-		math.floor(104 - depthAlpha * 44),
-		math.floor(94 - depthAlpha * 38),
-		math.floor(82 - depthAlpha * 30)
-	)
+	local roll = math.random() * totalWeight
+	local runningWeight = 0
+
+	for _, variant in ORE_VARIANTS do
+		runningWeight += variant.weight
+		if roll <= runningWeight then
+			return variant
+		end
+	end
+
+	return ORE_VARIANTS[1]
 end
 
 local function getOrCreateFolder(parent: Instance, name: string): Folder
@@ -164,12 +219,16 @@ function MineGenerator.CreateBlock(bounds: MineBounds, layersFolder: Folder, gri
 	block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 	block.Position = getBlockPosition(bounds, gridX, gridZ, depth)
 	block.Anchored = true
-	block.Material = Enum.Material.Slate
-	block.Color = getBlockColor(bounds, depth)
+
+	local oreVariant = getOreVariant()
+	block.Material = oreVariant.material
+	block.Color = oreVariant.color
 	block.TopSurface = Enum.SurfaceType.Smooth
 	block.BottomSurface = Enum.SurfaceType.Smooth
 
 	block:SetAttribute("MineBlock", true)
+	block:SetAttribute("OreType", oreVariant.name)
+	block:SetAttribute("OreWeight", oreVariant.weight)
 	block:SetAttribute("GridX", gridX)
 	block:SetAttribute("GridZ", gridZ)
 	block:SetAttribute("Depth", depth)
