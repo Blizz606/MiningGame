@@ -9,6 +9,7 @@ local INITIAL_VISIBLE_LAYERS = 2
 local MINE_FOLDER_NAME = "Mine"
 local LAYERS_FOLDER_NAME = "Layers"
 local BOUNDS_FOLDER_NAME = "MineBounds"
+local BOUNDS_SNAPSHOT_NAME = "MineBoundsSnapshot"
 local TOP_CORNER_NAME = "TopCorner"
 local BOTTOM_CORNER_NAME = "BottomCorner"
 
@@ -131,6 +132,11 @@ local function stashBoundsMarkers()
 		return
 	end
 
+	local existingSnapshot = ServerStorage:FindFirstChild(BOUNDS_SNAPSHOT_NAME)
+	if existingSnapshot then
+		existingSnapshot:Destroy()
+	end
+
 	for _, descendant in boundsFolder:GetDescendants() do
 		if not descendant:IsA("BasePart") then
 			continue
@@ -144,7 +150,11 @@ local function stashBoundsMarkers()
 		descendant.CanQuery = false
 	end
 
-	boundsFolder.Parent = ServerStorage
+	local snapshot = boundsFolder:Clone()
+	snapshot.Name = BOUNDS_SNAPSHOT_NAME
+	snapshot.Parent = ServerStorage
+
+	boundsFolder:Destroy()
 end
 
 local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number, depth: number): Vector3
