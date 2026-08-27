@@ -121,11 +121,14 @@
           "$properties": {
             "Anchored": true,
             "CanCollide": false,
+            "CanQuery": false,
+            "CanTouch": false,
             "Color": [
               0,
               1,
               0
             ],
+            "Locked": true,
             "Position": [
               42,
               6,
@@ -144,11 +147,14 @@
           "$properties": {
             "Anchored": true,
             "CanCollide": false,
+            "CanQuery": false,
+            "CanTouch": false,
             "Color": [
               0,
               0.35,
               1
             ],
+            "Locked": true,
             "Position": [
               118,
               -390,

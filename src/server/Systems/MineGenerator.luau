@@ -1,3 +1,4 @@
+local ServerStorage = game:GetService("ServerStorage")
 local Workspace = game:GetService("Workspace")
 
 local MineGenerator = {}
@@ -124,7 +125,7 @@ local function readMineBounds(): MineBounds
 	}
 end
 
-local function hideBoundsMarkers()
+local function stashBoundsMarkers()
 	local boundsFolder = Workspace:FindFirstChild(BOUNDS_FOLDER_NAME)
 	if not boundsFolder then
 		return
@@ -135,11 +136,15 @@ local function hideBoundsMarkers()
 			continue
 		end
 
+		descendant.Anchored = true
+		descendant.Locked = true
 		descendant.Transparency = 1
 		descendant.CanCollide = false
 		descendant.CanTouch = false
 		descendant.CanQuery = false
 	end
+
+	boundsFolder.Parent = ServerStorage
 end
 
 local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number, depth: number): Vector3
@@ -266,7 +271,7 @@ function MineGenerator.Start()
 	deepestGeneratedDepth = 0
 
 	local bounds = readMineBounds()
-	hideBoundsMarkers()
+	stashBoundsMarkers()
 
 	local mineFolder = Instance.new("Folder")
 	mineFolder.Name = MINE_FOLDER_NAME
