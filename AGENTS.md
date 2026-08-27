@@ -48,6 +48,8 @@ Die Roblox-Instanzen werden durch `default.project.json` gemappt:
 - `src/server` -> `ServerScriptService.Server`
 - `src/client` -> `StarterPlayer.StarterPlayerScripts.Client`
 - `Workspace.Baseplate` wird direkt in `default.project.json` definiert.
+- `Workspace` nutzt `$ignoreUnknownInstances`, damit man Studio-platzierte Level-Objekte behalten kann.
+- `Workspace.MineBounds` ist absichtlich nicht in Rojo gemappt. Die Marker `TopCorner` und `BottomCorner` sollen im Studio im Place gesetzt und gespeichert werden, damit Rojo ihre Positionen nicht ueberschreibt.
 
 Konvention:
 

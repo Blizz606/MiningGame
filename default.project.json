@@ -62,6 +62,7 @@
     },
 
     "Workspace": {
+      "$ignoreUnknownInstances": true,
       "$properties": {
         "FilteringEnabled": true
       },
@@ -112,61 +113,6 @@
         },
         "KillOnTouch": {
           "$path": "src/workspace/KillZone/KillOnTouch.server.luau"
-        }
-      },
-      "MineBounds": {
-        "$className": "Folder",
-        "TopCorner": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanQuery": false,
-            "CanTouch": false,
-            "Color": [
-              0,
-              1,
-              0
-            ],
-            "Locked": true,
-            "Position": [
-              42,
-              6,
-              -38
-            ],
-            "Size": [
-              4,
-              4,
-              4
-            ],
-            "Transparency": 0.35
-          }
-        },
-        "BottomCorner": {
-          "$className": "Part",
-          "$properties": {
-            "Anchored": true,
-            "CanCollide": false,
-            "CanQuery": false,
-            "CanTouch": false,
-            "Color": [
-              0,
-              0.35,
-              1
-            ],
-            "Locked": true,
-            "Position": [
-              118,
-              -390,
-              38
-            ],
-            "Size": [
-              4,
-              4,
-              4
-            ],
-            "Transparency": 0.35
-          }
         }
       }
     },
