@@ -1,0 +1,13 @@
+{
+  "name": "MiningGame",
+  "tree": {
+    "$className": "DataModel",
+    "StarterGui": {
+      "$properties": {
+        "ScreenOrientation": "Sensor"
+      },
+      "$path": "src/StarterGui"
+    }
+  },
+  "syncbackRules": {}
+}
