@@ -17,8 +17,12 @@ local START_DIM_TRANSPARENCY = 1
 -- LOG
 --------------------------------------------------
 
+local DEBUG_LOGS_ENABLED = false
+
 local function log(...)
-	print("[SHOP OPEN]", ...)
+	if DEBUG_LOGS_ENABLED then
+		print("[SHOP OPEN]", ...)
+	end
 end
 
 local function logWarn(...)
@@ -138,6 +142,7 @@ local function openShop()
 	log("")
 	log("======================================")
 	log("openShop() aufgerufen")
+	playerGui:SetAttribute("ShopOpenedByUser", true)
 
 	log("ShopLayer.Visible vorher:", shopLayer.Visible)
 	log("ShopGUI.Enabled vorher:", shopGui.Enabled)
@@ -147,7 +152,7 @@ local function openShop()
 	-- SCHON OFFEN?
 	--------------------------------------------------
 
-	if shopLayer.Visible then
+	if shopGui.Enabled and shopLayer.Visible then
 		log("⚠️ Shop ist bereits geöffnet")
 		log("→ kein weiterer Open-Tween")
 		return

@@ -5,6 +5,8 @@ local MineGenerator = {}
 
 local BLOCK_SIZE = 4
 local INITIAL_VISIBLE_LAYERS = 2
+local BLOCKS_PER_BATCH = 250
+local MAX_BLOCKS_PER_LAYER = 25_000
 
 local MINE_FOLDER_NAME = "Mine"
 local LAYERS_FOLDER_NAME = "Layers"
@@ -55,12 +57,15 @@ local ORE_VARIANTS = {
 local started = false
 local blocksByKey: { [string]: Part } = {}
 local deepestGeneratedDepth = 0
+local generationId = 0
+local generatingDepths: { [number]: boolean } = {}
 
 type OreVariant = {
 	name: string,
 	weight: number,
 	color: Color3,
 	material: Enum.Material,
+	cumulativeWeight: number?,
 }
 
 type MineBounds = {
@@ -74,6 +79,13 @@ type MineBounds = {
 	gridSizeZ: number,
 	maxDepth: number,
 }
+
+local oreTotalWeight = 0
+
+for _, variant in ipairs(ORE_VARIANTS) do
+	oreTotalWeight += variant.weight
+	variant.cumulativeWeight = oreTotalWeight
+end
 
 local function getBlockKey(gridX: number, gridZ: number, depth: number): string
 	return `{gridX}:{gridZ}:{depth}`
@@ -112,6 +124,14 @@ local function readMineBounds(): MineBounds
 	local gridSizeX = math.max(1, math.floor((maxX - minX) / BLOCK_SIZE) + 1)
 	local gridSizeZ = math.max(1, math.floor((maxZ - minZ) / BLOCK_SIZE) + 1)
 	local maxDepth = math.max(1, math.floor((topY - bottomY) / BLOCK_SIZE) + 1)
+	local blocksPerLayer = gridSizeX * gridSizeZ
+
+	if blocksPerLayer > MAX_BLOCKS_PER_LAYER then
+		error(
+			`Mine bounds are too large: {blocksPerLayer} blocks per layer. `
+				.. `Maximum is {MAX_BLOCKS_PER_LAYER}.`
+		)
+	end
 
 	return {
 		minX = minX,
@@ -166,17 +186,10 @@ local function getBlockPosition(bounds: MineBounds, gridX: number, gridZ: number
 end
 
 local function getOreVariant(): OreVariant
-	local totalWeight = 0
-	for _, variant in ORE_VARIANTS do
-		totalWeight += variant.weight
-	end
-
-	local roll = math.random() * totalWeight
-	local runningWeight = 0
+	local roll = math.random() * oreTotalWeight
 
 	for _, variant in ORE_VARIANTS do
-		runningWeight += variant.weight
-		if roll <= runningWeight then
+		if roll <= (variant.cumulativeWeight or 0) then
 			return variant
 		end
 	end
@@ -206,20 +219,47 @@ local function getOrCreateLayerFolder(layersFolder: Folder, depth: number): Fold
 end
 
 local function generateLayer(bounds: MineBounds, layersFolder: Folder, depth: number)
-	if depth > bounds.maxDepth or depth <= deepestGeneratedDepth then
+	if depth > bounds.maxDepth or depth <= deepestGeneratedDepth or generatingDepths[depth] then
 		return
 	end
 
-	for gridX = 1, bounds.gridSizeX do
-		for gridZ = 1, bounds.gridSizeZ do
-			MineGenerator.CreateBlock(bounds, layersFolder, gridX, gridZ, depth)
-		end
-	end
+	generatingDepths[depth] = true
 
-	deepestGeneratedDepth = depth
+	local success, result = pcall(function()
+		local layerFolder = getOrCreateLayerFolder(layersFolder, depth)
+		local blocksInBatch = 0
+
+		for gridX = 1, bounds.gridSizeX do
+			for gridZ = 1, bounds.gridSizeZ do
+				MineGenerator.CreateBlock(bounds, layersFolder, layerFolder, gridX, gridZ, depth)
+
+				blocksInBatch += 1
+
+				if blocksInBatch >= BLOCKS_PER_BATCH then
+					blocksInBatch = 0
+					task.wait()
+				end
+			end
+		end
+
+		deepestGeneratedDepth = depth
+	end)
+
+	generatingDepths[depth] = nil
+
+	if not success then
+		warn("[MINE GENERATOR] Layer generation failed:", depth, result)
+	end
 end
 
-function MineGenerator.CreateBlock(bounds: MineBounds, layersFolder: Folder, gridX: number, gridZ: number, depth: number)
+function MineGenerator.CreateBlock(
+	bounds: MineBounds,
+	layersFolder: Folder,
+	layerFolder: Folder,
+	gridX: number,
+	gridZ: number,
+	depth: number
+)
 	if depth > bounds.maxDepth then
 		return
 	end
@@ -229,11 +269,14 @@ function MineGenerator.CreateBlock(bounds: MineBounds, layersFolder: Folder, gri
 		return
 	end
 
+	local blockGenerationId = generationId
 	local block = Instance.new("Part")
 	block.Name = `Block_{gridX}_{gridZ}_{depth}`
 	block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 	block.Position = getBlockPosition(bounds, gridX, gridZ, depth)
 	block.Anchored = true
+	block.CanTouch = false
+	block.CastShadow = false
 
 	local oreVariant = getOreVariant()
 	block.Material = oreVariant.material
@@ -250,17 +293,27 @@ function MineGenerator.CreateBlock(bounds: MineBounds, layersFolder: Folder, gri
 
 	blocksByKey[key] = block
 	block.Destroying:Connect(function()
+		if blockGenerationId ~= generationId then
+			return
+		end
+
 		if blocksByKey[key] ~= block then
 			return
 		end
 
 		blocksByKey[key] = nil
+
 		if depth >= deepestGeneratedDepth - 1 then
-			generateLayer(bounds, layersFolder, deepestGeneratedDepth + 1)
+			task.spawn(generateLayer, bounds, layersFolder, deepestGeneratedDepth + 1)
 		end
 	end)
 
-	block.Parent = getOrCreateLayerFolder(layersFolder, depth)
+	if blockGenerationId ~= generationId or not layerFolder:IsDescendantOf(Workspace) then
+		block:Destroy()
+		return
+	end
+
+	block.Parent = layerFolder
 end
 
 local function clearExistingMine()
@@ -276,29 +329,40 @@ function MineGenerator.Start()
 	end
 
 	started = true
-	clearExistingMine()
+	generationId += 1
 	blocksByKey = {}
 	deepestGeneratedDepth = 0
+	generatingDepths = {}
 
-	local bounds = readMineBounds()
-	stashBoundsMarkers()
+	local success, result = pcall(function()
+		clearExistingMine()
 
-	local mineFolder = Instance.new("Folder")
-	mineFolder.Name = MINE_FOLDER_NAME
-	mineFolder.Parent = Workspace
+		local bounds = readMineBounds()
+		stashBoundsMarkers()
 
-	local layersFolder = Instance.new("Folder")
-	layersFolder.Name = LAYERS_FOLDER_NAME
-	layersFolder.Parent = mineFolder
+		local mineFolder = Instance.new("Folder")
+		mineFolder.Name = MINE_FOLDER_NAME
+		mineFolder.Parent = Workspace
 
-	for depth = 1, math.min(INITIAL_VISIBLE_LAYERS, bounds.maxDepth) do
-		generateLayer(bounds, layersFolder, depth)
+		local layersFolder = Instance.new("Folder")
+		layersFolder.Name = LAYERS_FOLDER_NAME
+		layersFolder.Parent = mineFolder
+
+		for depth = 1, math.min(INITIAL_VISIBLE_LAYERS, bounds.maxDepth) do
+			generateLayer(bounds, layersFolder, depth)
+		end
+	end)
+
+	if not success then
+		started = false
+		generationId += 1
+		blocksByKey = {}
+		deepestGeneratedDepth = 0
+		generatingDepths = {}
+
+		warn("[MINE GENERATOR] Start failed:", result)
 	end
 
-	print(
-		`Generated mine: {bounds.gridSizeX}x{bounds.gridSizeZ} columns, {bounds.maxDepth} blocks deep, `
-			.. `{bounds.gridSizeX * bounds.gridSizeZ * deepestGeneratedDepth} generated blocks.`
-	)
 end
 
 return MineGenerator

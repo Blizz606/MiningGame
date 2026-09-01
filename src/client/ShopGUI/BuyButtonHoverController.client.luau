@@ -19,8 +19,6 @@ local function setupBuyButton(button)
 		return
 	end
 
-	print("[BUY EFFECT] Setup:", button:GetFullName())
-
 	button.AutoButtonColor = false
 
 	local uiScale = button:FindFirstChild("HoverScale")

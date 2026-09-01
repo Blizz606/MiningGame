@@ -1,11 +1,17 @@
-print("[ROJO TEST] PageController synced!")
-
 local TweenService = game:GetService("TweenService")
 
 local shopHolder = script.Parent
 
 local tabs = shopHolder:WaitForChild("Tabs")
 local pages = shopHolder:WaitForChild("Pages")
+
+local openPageRequest = shopHolder:FindFirstChild("OpenPageRequest")
+
+if not openPageRequest then
+	openPageRequest = Instance.new("BindableEvent")
+	openPageRequest.Name = "OpenPageRequest"
+	openPageRequest.Parent = shopHolder
+end
 
 --------------------------------------------------
 -- BUTTONS
@@ -20,11 +26,25 @@ local boostsButton = tabs:WaitForChild("BoostsButton")
 -- PAGES
 --------------------------------------------------
 
+local function findPage(...)
+	local pageNames = { ... }
+
+	for _, pageName in ipairs(pageNames) do
+		local page = pages:FindFirstChild(pageName)
+
+		if page then
+			return page
+		end
+	end
+
+	return nil
+end
+
 local passesPage = pages:WaitForChild("PassesPage")
 local cashPage = pages:WaitForChild("CashPage")
 
-local gemsPage = pages:FindFirstChild("GemsPage")
-local boostsPage = pages:FindFirstChild("BoostsPage")
+local gemsPage = findPage("GemPage", "GemsPage")
+local boostsPage = findPage("BoostsPage", "BoostPage")
 
 local pageList = {
 	Passes = passesPage,
@@ -168,8 +188,6 @@ end
 
 local function openPage(pageName)
 
-	print("[SHOP PAGE] Öffne:", pageName)
-
 	animationVersion += 1
 
 	local thisVersion = animationVersion
@@ -216,8 +234,6 @@ local function openPage(pageName)
 		thisVersion
 	)
 
-	print("[SHOP PAGE] ✅ Sichtbar:", selectedPage.Name)
-
 end
 
 --------------------------------------------------
@@ -239,6 +255,16 @@ end)
 boostsButton.Activated:Connect(function()
 	openPage("Boosts")
 end)
+
+if openPageRequest:IsA("BindableEvent") then
+	openPageRequest.Event:Connect(function(pageName)
+		if typeof(pageName) ~= "string" then
+			return
+		end
+
+		openPage(pageName)
+	end)
+end
 
 --------------------------------------------------
 -- START

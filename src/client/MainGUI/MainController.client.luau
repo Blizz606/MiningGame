@@ -1,12 +1,17 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local Text = require(ReplicatedStorage.Text)
+
+local GAIN_PULSE_SCALE = 1.08
+local GAIN_PULSE_UP_TIME = 0.10
+local GAIN_PULSE_DOWN_TIME = 0.18
 
 
 -- ========================================
@@ -59,6 +64,15 @@ buttonsFrame.ClipsDescendants = false
 
 local moneyFrame = currencies:WaitForChild("Money")
 local moneyAmountFrame = moneyFrame:WaitForChild("Amount")
+local moneyPlusButton = moneyFrame:WaitForChild("PlusButton")
+local moneyGainScale = moneyFrame:FindFirstChild("GainPulseScale")
+
+if not moneyGainScale then
+	moneyGainScale = Instance.new("UIScale")
+	moneyGainScale.Name = "GainPulseScale"
+	moneyGainScale.Scale = 1
+	moneyGainScale.Parent = moneyFrame
+end
 
 
 -- ========================================
@@ -67,6 +81,15 @@ local moneyAmountFrame = moneyFrame:WaitForChild("Amount")
 
 local diamondsFrame = currencies:WaitForChild("Diamonds")
 local diamondsAmountFrame = diamondsFrame:WaitForChild("Amount")
+local diamondsPlusButton = diamondsFrame:WaitForChild("PlusButton")
+local diamondsGainScale = diamondsFrame:FindFirstChild("GainPulseScale")
+
+if not diamondsGainScale then
+	diamondsGainScale = Instance.new("UIScale")
+	diamondsGainScale.Name = "GainPulseScale"
+	diamondsGainScale.Scale = 1
+	diamondsGainScale.Parent = diamondsFrame
+end
 
 
 -- ========================================
@@ -104,16 +127,16 @@ diamondsText.TextCentered = true
 local function formatNumber(number)
 
 	if number >= 1_000_000_000_000 then
-		return string.format("%.1fT", number / 1_000_000_000_000)
+		return string.format("%.1f T", number / 1_000_000_000_000)
 
 	elseif number >= 1_000_000_000 then
-		return string.format("%.1fB", number / 1_000_000_000)
+		return string.format("%.1f B", number / 1_000_000_000)
 
 	elseif number >= 1_000_000 then
-		return string.format("%.1fM", number / 1_000_000)
+		return string.format("%.1f M", number / 1_000_000)
 
 	elseif number >= 1_000 then
-		return string.format("%.1fK", number / 1_000)
+		return string.format("%.1f K", number / 1_000)
 
 	end
 
@@ -132,6 +155,145 @@ end
 
 local function updateDiamondsText()
 	diamondsText.Text = formatNumber(diamondsValue.Value)
+end
+
+
+-- ========================================
+-- CURRENCY GAIN ANIMATION
+-- ========================================
+
+local activePulseTweens = {}
+
+local function playGainPulse(scaleObject)
+	local currentTween = activePulseTweens[scaleObject]
+
+	if currentTween then
+		currentTween:Cancel()
+	end
+
+	scaleObject.Scale = 1
+
+	local growTween = TweenService:Create(
+		scaleObject,
+		TweenInfo.new(
+			GAIN_PULSE_UP_TIME,
+			Enum.EasingStyle.Back,
+			Enum.EasingDirection.Out
+		),
+		{
+			Scale = GAIN_PULSE_SCALE
+		}
+	)
+
+	activePulseTweens[scaleObject] = growTween
+	growTween:Play()
+
+	growTween.Completed:Once(function(playbackState)
+		if activePulseTweens[scaleObject] ~= growTween then
+			return
+		end
+
+		if playbackState == Enum.PlaybackState.Cancelled then
+			return
+		end
+
+		local shrinkTween = TweenService:Create(
+			scaleObject,
+			TweenInfo.new(
+				GAIN_PULSE_DOWN_TIME,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			),
+			{
+				Scale = 1
+			}
+		)
+
+		activePulseTweens[scaleObject] = shrinkTween
+		shrinkTween:Play()
+
+		shrinkTween.Completed:Once(function()
+			if activePulseTweens[scaleObject] == shrinkTween then
+				activePulseTweens[scaleObject] = nil
+			end
+		end)
+	end)
+end
+
+
+-- ========================================
+-- SHOP PAGE OEFFNEN
+-- ========================================
+
+local function getOpenPageRequest(shopHolder)
+	local openPageRequest = shopHolder:FindFirstChild("OpenPageRequest")
+
+	if openPageRequest then
+		if openPageRequest:IsA("BindableEvent") then
+			return openPageRequest
+		end
+
+		warn("ShopHolder.OpenPageRequest muss ein BindableEvent sein.")
+		return nil
+	end
+
+	openPageRequest = Instance.new("BindableEvent")
+	openPageRequest.Name = "OpenPageRequest"
+	openPageRequest.Parent = shopHolder
+
+	return openPageRequest
+end
+
+local function openShopPage(pageName)
+	local playerGui = player:WaitForChild("PlayerGui")
+	local shopGui = playerGui:WaitForChild("ShopGUI", 5)
+
+	if not shopGui then
+		warn("ShopGUI wurde im PlayerGui nicht gefunden.")
+		return
+	end
+
+	local shopLayer = shopGui:WaitForChild("ShopLayer", 5)
+
+	if not shopLayer then
+		warn("ShopGUI.ShopLayer wurde nicht gefunden.")
+		return
+	end
+
+	local shopHolder = shopLayer:WaitForChild("ShopHolder", 5)
+
+	if not shopHolder then
+		warn("ShopGUI.ShopLayer.ShopHolder wurde nicht gefunden.")
+		return
+	end
+
+	local shopScale = shopHolder:FindFirstChild("UIScale")
+
+	if not shopScale then
+		shopScale = Instance.new("UIScale")
+		shopScale.Name = "UIScale"
+		shopScale.Scale = 1
+		shopScale.Parent = shopHolder
+	end
+
+	local dimButton = shopLayer:FindFirstChild("DimButton")
+	local openPageRequest = getOpenPageRequest(shopHolder)
+
+	playerGui:SetAttribute("ShopOpenedByUser", true)
+	shopGui.Enabled = true
+	shopLayer.Visible = true
+
+	if shopScale then
+		shopScale.Scale = 1
+	end
+
+	if dimButton and dimButton:IsA("GuiObject") then
+		dimButton.BackgroundTransparency = 0.55
+	end
+
+	if openPageRequest then
+		openPageRequest:Fire(pageName)
+	end
 end
 
 
@@ -208,7 +370,7 @@ local function updateHUD()
 
 
 			-- Schrift
-			moneyText.TextSize = 0.80
+			moneyText.TextSize = 0.74
 			diamondsText.TextSize = 0.80
 
 
@@ -255,7 +417,7 @@ local function updateHUD()
 			)
 
 
-			moneyText.TextSize = 0.82
+			moneyText.TextSize = 0.76
 			diamondsText.TextSize = 0.82
 
 		end
@@ -309,8 +471,8 @@ local function updateHUD()
 
 
 		-- Desktop Schrift
-		moneyText.TextSize = 0.74
-		diamondsText.TextSize = 0.74
+		moneyText.TextSize = 0.64
+		diamondsText.TextSize = 0.68
 
 	end
 
@@ -416,11 +578,21 @@ end
 -- MONEY ÄNDERT SICH
 -- ========================================
 
+local lastMoneyValue = moneyValue.Value
+
 moneyValue
 	:GetPropertyChangedSignal("Value")
 	:Connect(function()
 
+		local newValue = moneyValue.Value
+
 		updateMoneyText()
+
+		if newValue > lastMoneyValue then
+			playGainPulse(moneyGainScale)
+		end
+
+		lastMoneyValue = newValue
 
 	end)
 
@@ -429,14 +601,44 @@ moneyValue
 -- DIAMONDS ÄNDERN SICH
 -- ========================================
 
+local lastDiamondsValue = diamondsValue.Value
+
 diamondsValue
 	:GetPropertyChangedSignal("Value")
 	:Connect(function()
 
+		local newValue = diamondsValue.Value
+
 		updateDiamondsText()
+
+		if newValue > lastDiamondsValue then
+			playGainPulse(diamondsGainScale)
+		end
+
+		lastDiamondsValue = newValue
 
 	end)
 
+
+-- ========================================
+-- CURRENCY PLUS BUTTONS
+-- ========================================
+
+if moneyPlusButton:IsA("GuiButton") then
+	moneyPlusButton.Activated:Connect(function()
+		openShopPage("Cash")
+	end)
+else
+	warn("Money.PlusButton muss ein GuiButton sein.")
+end
+
+if diamondsPlusButton:IsA("GuiButton") then
+	diamondsPlusButton.Activated:Connect(function()
+		openShopPage("Gems")
+	end)
+else
+	warn("Diamonds.PlusButton muss ein GuiButton sein.")
+end
 
 -- ========================================
 -- AUFLÖSUNG ÄNDERT SICH

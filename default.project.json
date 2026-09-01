@@ -3,9 +3,22 @@
   "tree": {
     "$className": "DataModel",
 
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+
+      "Leaderbord": {
+        "$path": "src/server/Leaderbord.server.luau"
+      }
+    },
+
     "StarterGui": {
       "$className": "StarterGui",
       "$ignoreUnknownInstances": true,
+
+      "GuiPreloader": {
+        "$path": "src/client/GuiPreloader.client.luau"
+      },
 
       "MainGUI": {
         "$className": "ScreenGui",

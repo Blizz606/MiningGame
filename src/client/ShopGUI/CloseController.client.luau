@@ -10,7 +10,8 @@ local shopHolder = shopLayer:WaitForChild("ShopHolder")
 local dimButton = shopLayer:WaitForChild("DimButton")
 local uiScale = shopHolder:WaitForChild("UIScale")
 
-local PREFIX = "[SHOP CLOSE DEBUG]"
+local PREFIX = "[SHOP CLOSE]"
+local DEBUG_LOGS_ENABLED = false
 
 local NORMAL_SCALE = 1
 local CLOSED_SCALE = 0.88
@@ -25,7 +26,9 @@ local isClosing = false
 --------------------------------------------------
 
 local function log(...)
-	print(PREFIX, ...)
+	if DEBUG_LOGS_ENABLED then
+		print(PREFIX, ...)
+	end
 end
 
 
@@ -344,13 +347,6 @@ UserInputService.InputBegan:Connect(
 		log("Klick erkannt!")
 		log("X:", x)
 		log("Y:", y)
-
-
-		--------------------------------------------------
-		-- EXTRA DEBUG
-		--------------------------------------------------
-
-		debugGuiObjects(x, y)
 
 
 		--------------------------------------------------
