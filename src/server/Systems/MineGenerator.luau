@@ -4,8 +4,9 @@ local Workspace = game:GetService("Workspace")
 local MineGenerator = {}
 
 local BLOCK_SIZE = 4
-local INITIAL_VISIBLE_LAYERS = 2
-local BLOCKS_PER_BATCH = 250
+local INITIAL_BLOCKING_LAYERS = 2
+local KEEP_AHEAD_LAYERS = 6
+local BLOCKS_PER_BATCH = 900
 local MAX_BLOCKS_PER_LAYER = 25_000
 
 local MINE_FOLDER_NAME = "Mine"
@@ -57,8 +58,10 @@ local ORE_VARIANTS = {
 local started = false
 local blocksByKey: { [string]: Part } = {}
 local deepestGeneratedDepth = 0
+local targetGeneratedDepth = 0
 local generationId = 0
 local generatingDepths: { [number]: boolean } = {}
+local queuedGeneration = false
 
 type OreVariant = {
 	name: string,
@@ -228,9 +231,14 @@ local function generateLayer(bounds: MineBounds, layersFolder: Folder, depth: nu
 	local success, result = pcall(function()
 		local layerFolder = getOrCreateLayerFolder(layersFolder, depth)
 		local blocksInBatch = 0
+		local layerGenerationId = generationId
 
 		for gridX = 1, bounds.gridSizeX do
 			for gridZ = 1, bounds.gridSizeZ do
+				if layerGenerationId ~= generationId or not layersFolder:IsDescendantOf(Workspace) then
+					return
+				end
+
 				MineGenerator.CreateBlock(bounds, layersFolder, layerFolder, gridX, gridZ, depth)
 
 				blocksInBatch += 1
@@ -250,6 +258,42 @@ local function generateLayer(bounds: MineBounds, layersFolder: Folder, depth: nu
 	if not success then
 		warn("[MINE GENERATOR] Layer generation failed:", depth, result)
 	end
+end
+
+local function fillGeneratedLayers(bounds: MineBounds, layersFolder: Folder)
+	if queuedGeneration then
+		return
+	end
+
+	queuedGeneration = true
+
+	task.spawn(function()
+		while deepestGeneratedDepth < math.min(targetGeneratedDepth, bounds.maxDepth) do
+			if generationId <= 0 or not layersFolder:IsDescendantOf(Workspace) then
+				break
+			end
+
+			generateLayer(bounds, layersFolder, deepestGeneratedDepth + 1)
+			task.wait()
+		end
+
+		queuedGeneration = false
+
+		if deepestGeneratedDepth < math.min(targetGeneratedDepth, bounds.maxDepth) then
+			fillGeneratedLayers(bounds, layersFolder)
+		end
+	end)
+end
+
+local function requestGeneratedDepth(bounds: MineBounds, layersFolder: Folder, depth: number)
+	local clampedDepth = math.clamp(depth, 1, bounds.maxDepth)
+
+	if clampedDepth <= targetGeneratedDepth and queuedGeneration then
+		return
+	end
+
+	targetGeneratedDepth = math.max(targetGeneratedDepth, clampedDepth)
+	fillGeneratedLayers(bounds, layersFolder)
 end
 
 function MineGenerator.CreateBlock(
@@ -303,8 +347,8 @@ function MineGenerator.CreateBlock(
 
 		blocksByKey[key] = nil
 
-		if depth >= deepestGeneratedDepth - 1 then
-			task.spawn(generateLayer, bounds, layersFolder, deepestGeneratedDepth + 1)
+		if depth >= deepestGeneratedDepth - KEEP_AHEAD_LAYERS + 1 then
+			requestGeneratedDepth(bounds, layersFolder, depth + KEEP_AHEAD_LAYERS)
 		end
 	end)
 
@@ -332,7 +376,9 @@ function MineGenerator.Start()
 	generationId += 1
 	blocksByKey = {}
 	deepestGeneratedDepth = 0
+	targetGeneratedDepth = 0
 	generatingDepths = {}
+	queuedGeneration = false
 
 	local success, result = pcall(function()
 		clearExistingMine()
@@ -348,9 +394,13 @@ function MineGenerator.Start()
 		layersFolder.Name = LAYERS_FOLDER_NAME
 		layersFolder.Parent = mineFolder
 
-		for depth = 1, math.min(INITIAL_VISIBLE_LAYERS, bounds.maxDepth) do
+		local initialDepth = math.min(INITIAL_BLOCKING_LAYERS, bounds.maxDepth)
+
+		for depth = 1, initialDepth do
 			generateLayer(bounds, layersFolder, depth)
 		end
+
+		requestGeneratedDepth(bounds, layersFolder, initialDepth + KEEP_AHEAD_LAYERS)
 	end)
 
 	if not success then
@@ -358,7 +408,9 @@ function MineGenerator.Start()
 		generationId += 1
 		blocksByKey = {}
 		deepestGeneratedDepth = 0
+		targetGeneratedDepth = 0
 		generatingDepths = {}
+		queuedGeneration = false
 
 		warn("[MINE GENERATOR] Start failed:", result)
 	end

@@ -1,5 +1,7 @@
-local MineGenerator = require(script.Systems.MineGenerator)
-local MiningService = require(script.Systems.MiningService)
+local Systems = script.Parent:WaitForChild("Systems")
+
+local MineGenerator = require(Systems:WaitForChild("MineGenerator"))
+local MiningService = require(Systems:WaitForChild("MiningService"))
 
 MineGenerator.Start()
 MiningService.Start()

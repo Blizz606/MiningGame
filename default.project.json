@@ -9,6 +9,15 @@
 
       "Leaderbord": {
         "$path": "src/server/Leaderbord.server.luau"
+      },
+
+      "GameServer": {
+        "$className": "Script",
+        "$path": "src/server/init.server.luau"
+      },
+
+      "Systems": {
+        "$path": "src/server/Systems"
       }
     },
 
